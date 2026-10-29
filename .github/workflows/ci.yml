@@ -10,22 +10,24 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
 
       - name: Install ESPHome
-        run: pip install esphome
+        run: pip install -r requirements.txt
 
-      - name: Cache PlatformIO
+      # ESP-IDF toolchain and framework downloads.
+      - name: Cache toolchain
         uses: actions/cache@v4
         with:
-          path: ~/.platformio
-          key: platformio-${{ runner.os }}-${{ hashFiles('omlet-fan.yaml') }}
-          restore-keys: platformio-${{ runner.os }}-
+          path: |
+            ~/.cache/esphome
+            ~/.platformio
+          key: toolchain-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
 
       # example.yaml with the github:// package swapped for the checked-out copy,
       # plus dummy secrets.

@@ -59,7 +59,7 @@ LED behaviour, whether the tacho wire reaches a GPIO. When a hardware question i
 `README.md` (status note, pin map) and `analysis/FINDINGS.md`.
 
 The repo is published as `skolodziej/omlet-fan-esphome`; users pull the package from `main`, so anything pushed there
-ships. CI (`.github/workflows/ci.yml`) turns `example.yaml` into a local-include config by rewriting its `omlet:`
+ships. CI (`.github/workflows/ci.yml`, ESPHome version pinned in `requirements.txt`) turns `example.yaml` into a local-include config by rewriting its `omlet:`
 package line, then runs `esphome config`, `tests/run.sh` and `esphome compile`. Keep that line's format in
 `example.yaml` or update the `sed` in the workflow.
 
