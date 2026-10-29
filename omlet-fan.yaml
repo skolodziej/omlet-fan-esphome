@@ -73,6 +73,16 @@ fan:
     speed_count: 3
     # Out of the box the stock fan runs at full speed.
     restore_mode: RESTORE_DEFAULT_ON
+    # Keep Manual Speed in step when the speed is changed on the fan entity.
+    # Time and Thermostatic set their own speeds and leave it alone.
+    on_speed_set:
+      - lambda: |-
+          auto mode = id(omlet_mode).active_index();
+          if (!mode.has_value() || *mode != 0 || x < 1 || x > 3)
+            return;
+          auto idx = id(omlet_manual_speed).active_index();
+          if (!idx.has_value() || *idx != static_cast<size_t>(x - 1))
+            id(omlet_manual_speed).make_call().set_index(x - 1).perform();
 
 sensor:
   - platform: aht10
@@ -105,7 +115,21 @@ select:
     optimistic: true
     restore_value: true
     on_value:
+      - script.execute: omlet_apply_manual_speed
       - script.execute: omlet_evaluate
+
+  # Speed in Manual mode, like the stock app's manual level. Changing it does
+  # not switch the fan on or off; that stays on the fan entity.
+  - platform: template
+    id: omlet_manual_speed
+    name: Manual Speed
+    icon: mdi:speedometer
+    options: [Low, Medium, High]
+    initial_option: High
+    optimistic: true
+    restore_value: true
+    on_value:
+      - script.execute: omlet_apply_manual_speed
 
   - platform: template
     id: omlet_thermostat_speed
@@ -254,6 +278,18 @@ datetime:
     initial_value: "00:00:00"
 
 script:
+  # In Manual mode, set the fan to Manual Speed without changing on/off.
+  - id: omlet_apply_manual_speed
+    then:
+      - lambda: |-
+          auto mode = id(omlet_mode).active_index();
+          auto idx = id(omlet_manual_speed).active_index();
+          if (!mode.has_value() || *mode != 0 || !idx.has_value())
+            return;
+          int speed = static_cast<int>(*idx) + 1;
+          if (id(omlet_fan)->speed != speed)
+            id(omlet_fan)->make_call().set_speed(speed).perform();
+
   # Mirrors the stock control loop (Fans.c):
   #  - Manual: leave the fan alone.
   #  - Time: first active window wins and sets its speed; no window -> off.

@@ -47,6 +47,8 @@ The package provides:
 - `fan` with three speeds (Low / Medium / High), on by default at full speed like the stock fan.
 - `select` **Mode**: Manual, Time or Thermostatic, the same three modes as the Omlet app. The logic runs on the
   device, so it keeps working without Home Assistant.
+- Manual: **Manual Speed** (Low / Medium / High) sets the level; on and off stay on the fan entity. It follows speed
+  changes made on the fan entity.
 - Thermostatic: **On At** / **Off Below** (defaults 25 / 23 °C, as stock) and a speed.
 - Time: four windows, each with on time, off time and speed. A window with equal on and off times is disabled.
 - `sensor` temperature and humidity from the built-in AHT20 (sampled every 60 s like stock).
