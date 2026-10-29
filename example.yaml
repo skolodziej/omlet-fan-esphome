@@ -1,0 +1,26 @@
+# Minimal config for an Omlet Smart Fan running ESPHome.
+# Everything board-specific comes from the package.
+
+esphome:
+  name: coop-fan
+  friendly_name: Coop Fan
+
+packages:
+  omlet: github://skolodziej/omlet-fan-esphome/omlet-fan.yaml@main
+
+# Optional overrides, see the substitutions at the top of omlet-fan.yaml.
+# substitutions:
+#   fan_min_power: "0.2"
+#   timezone: Europe/Zurich
+
+api:
+
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+
+captive_portal:

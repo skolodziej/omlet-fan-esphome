@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install ESPHome
+        run: pip install esphome
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: platformio-${{ runner.os }}-${{ hashFiles('omlet-fan.yaml') }}
+          restore-keys: platformio-${{ runner.os }}-
+
+      # example.yaml with the github:// package swapped for the checked-out copy,
+      # plus dummy secrets.
+      - name: Prepare test config
+        run: |
+          mkdir -p .test
+          sed 's#^  omlet: github://.*#  omlet: !include ../omlet-fan.yaml#' example.yaml > .test/example.yaml
+          grep -q '!include ../omlet-fan.yaml' .test/example.yaml
+          printf 'wifi_ssid: test\nwifi_password: testtesttest\n' > .test/secrets.yaml
+
+      - name: Validate config
+        run: esphome config .test/example.yaml
+
+      - name: Logic test
+        run: tests/run.sh
+
+      - name: Compile
+        run: esphome compile .test/example.yaml

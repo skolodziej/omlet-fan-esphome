@@ -1,0 +1,380 @@
+# ESPHome package for the Omlet Smart Chicken Coop Fan (board X117 FAN ISS 2.0).
+#
+# Use it from your own config:
+#
+#   packages:
+#     omlet: github://skolodziej/omlet-fan-esphome/omlet-fan.yaml@main
+#
+# Everything the stock app offers (Manual, Time with four windows, Thermostatic
+# with hysteresis, three speeds) runs on the device itself, so the fan keeps
+# working when Home Assistant or Wi-Fi is down. Override any substitution below
+# in your own config.
+
+substitutions:
+  fan_name: Fan
+  # Stock firmware: LEDC timer 0, 13-bit, 5 kHz.
+  pwm_frequency: 5000Hz
+  # Lowest duty that still spins the fan. The stock firmware has no floor and
+  # the app's Low/Medium percentages are not known yet, so the three speeds map
+  # to 33/67/100 % by default. Raise this if Low stalls the fan.
+  fan_min_power: "0.0"
+  timezone: Europe/Berlin
+  # The stock firmware samples the AHT20 every 60 s.
+  sensor_interval: 60s
+  # How often the Time/Thermostatic logic is evaluated.
+  control_interval: 15s
+  # Holding BOOT this long wipes settings, like the stock firmware (~6 s).
+  factory_reset_hold: 6s
+  # RECOVERY (GPIO17) polarity is not verified. The stock ISR treats a high
+  # level as pressed; set to "true" if the sensor reads inverted.
+  recovery_inverted: "false"
+
+esp32:
+  variant: esp32s3
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+
+# Logs go to the HDR2 serial header (UART0, GPIO43/44). USB D+/D- are only on
+# test pads.
+logger:
+  hardware_uart: UART0
+
+i2c:
+  id: omlet_i2c
+  sda: GPIO5
+  scl: GPIO4
+  frequency: 200kHz
+
+time:
+  - platform: homeassistant
+    id: omlet_ha_time
+    timezone: ${timezone}
+  - platform: sntp
+    id: omlet_sntp_time
+    timezone: ${timezone}
+
+output:
+  # Fan drive through T1. The stock firmware drives this pin active-low:
+  # duty = 8192 * (100 - speed) / 100, and on stop the LEDC idles high.
+  - platform: ledc
+    id: omlet_fan_pwm
+    pin: GPIO1
+    frequency: ${pwm_frequency}
+    inverted: true
+    min_power: ${fan_min_power}
+    zero_means_zero: true
+
+fan:
+  - platform: speed
+    id: omlet_fan
+    name: ${fan_name}
+    output: omlet_fan_pwm
+    speed_count: 3
+    # Out of the box the stock fan runs at full speed.
+    restore_mode: RESTORE_DEFAULT_ON
+
+sensor:
+  - platform: aht10
+    variant: AHT20
+    address: 0x38
+    update_interval: ${sensor_interval}
+    temperature:
+      id: omlet_temperature
+      name: Temperature
+      accuracy_decimals: 1
+      on_value:
+        - script.execute: omlet_evaluate
+    humidity:
+      id: omlet_humidity
+      name: Humidity
+      accuracy_decimals: 0
+
+  - platform: wifi_signal
+    name: Wi-Fi Signal
+    update_interval: 60s
+    entity_category: diagnostic
+
+select:
+  - platform: template
+    id: omlet_mode
+    name: Mode
+    icon: mdi:fan-auto
+    options: [Manual, Time, Thermostatic]
+    initial_option: Manual
+    optimistic: true
+    restore_value: true
+    on_value:
+      - script.execute: omlet_evaluate
+
+  - platform: template
+    id: omlet_thermostat_speed
+    name: Thermostatic Speed
+    icon: mdi:speedometer
+    entity_category: config
+    options: [Low, Medium, High]
+    initial_option: High
+    optimistic: true
+    restore_value: true
+
+  - platform: template
+    id: omlet_window1_speed
+    name: Window 1 Speed
+    icon: mdi:speedometer
+    entity_category: config
+    options: [Low, Medium, High]
+    initial_option: High
+    optimistic: true
+    restore_value: true
+  - platform: template
+    id: omlet_window2_speed
+    name: Window 2 Speed
+    icon: mdi:speedometer
+    entity_category: config
+    options: [Low, Medium, High]
+    initial_option: High
+    optimistic: true
+    restore_value: true
+  - platform: template
+    id: omlet_window3_speed
+    name: Window 3 Speed
+    icon: mdi:speedometer
+    entity_category: config
+    options: [Low, Medium, High]
+    initial_option: High
+    optimistic: true
+    restore_value: true
+  - platform: template
+    id: omlet_window4_speed
+    name: Window 4 Speed
+    icon: mdi:speedometer
+    entity_category: config
+    options: [Low, Medium, High]
+    initial_option: High
+    optimistic: true
+    restore_value: true
+
+number:
+  # Stock defaults: on at 25 degC, off below 23 degC.
+  - platform: template
+    id: omlet_temp_on
+    name: Thermostatic On At
+    icon: mdi:thermometer-chevron-up
+    entity_category: config
+    unit_of_measurement: °C
+    min_value: -20
+    max_value: 50
+    step: 1
+    initial_value: 25
+    optimistic: true
+    restore_value: true
+    on_value:
+      - script.execute: omlet_evaluate
+  - platform: template
+    id: omlet_temp_off
+    name: Thermostatic Off Below
+    icon: mdi:thermometer-chevron-down
+    entity_category: config
+    unit_of_measurement: °C
+    min_value: -20
+    max_value: 50
+    step: 1
+    initial_value: 23
+    optimistic: true
+    restore_value: true
+    on_value:
+      - script.execute: omlet_evaluate
+
+# Four on/off windows like the stock firmware. A window with on == off is
+# disabled (the stock default is 00:00-00:00 for all four).
+datetime:
+  - platform: template
+    id: omlet_window1_on
+    name: Window 1 On
+    type: time
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    initial_value: "00:00:00"
+  - platform: template
+    id: omlet_window1_off
+    name: Window 1 Off
+    type: time
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    initial_value: "00:00:00"
+  - platform: template
+    id: omlet_window2_on
+    name: Window 2 On
+    type: time
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    initial_value: "00:00:00"
+  - platform: template
+    id: omlet_window2_off
+    name: Window 2 Off
+    type: time
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    initial_value: "00:00:00"
+  - platform: template
+    id: omlet_window3_on
+    name: Window 3 On
+    type: time
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    initial_value: "00:00:00"
+  - platform: template
+    id: omlet_window3_off
+    name: Window 3 Off
+    type: time
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    initial_value: "00:00:00"
+  - platform: template
+    id: omlet_window4_on
+    name: Window 4 On
+    type: time
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    initial_value: "00:00:00"
+  - platform: template
+    id: omlet_window4_off
+    name: Window 4 Off
+    type: time
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    initial_value: "00:00:00"
+
+script:
+  # Mirrors the stock control loop (Fans.c):
+  #  - Manual: leave the fan alone.
+  #  - Time: first active window wins and sets its speed; no window -> off.
+  #  - Thermostatic: off and temp >= on -> on at the set speed;
+  #                  on and temp < off -> off.
+  # Deliberate differences from stock, both bugs there:
+  #  - temperatures are compared signed (stock compares unsigned, so below
+  #    0 degC the fan switches on and stays on);
+  #  - a window that crosses midnight (22:00-06:00) also covers the time
+  #    after midnight (stock only runs it until 24:00).
+  - id: omlet_evaluate
+    mode: queued
+    max_runs: 2
+    then:
+      - lambda: |-
+          auto speed_of = [](select::Select *s) -> int {
+            auto idx = s->active_index();
+            return idx.has_value() ? static_cast<int>(*idx) + 1 : 3;
+          };
+          auto set_fan = [](bool on, int speed) {
+            auto *f = id(omlet_fan);
+            if (!on) {
+              if (f->state) f->turn_off().perform();
+              return;
+            }
+            if (!f->state || f->speed != speed)
+              f->turn_on().set_speed(speed).perform();
+          };
+
+          auto mode = id(omlet_mode).active_index();
+          if (!mode.has_value() || *mode == 0)
+            return;  // Manual
+
+          if (*mode == 2) {  // Thermostatic
+            float t = id(omlet_temperature).state;
+            if (std::isnan(t))
+              return;
+            int speed = speed_of(id(omlet_thermostat_speed));
+            if (id(omlet_fan)->state) {
+              if (t < id(omlet_temp_off).state)
+                set_fan(false, 0);
+              else
+                set_fan(true, speed);
+            } else if (t >= id(omlet_temp_on).state) {
+              set_fan(true, speed);
+            }
+            return;
+          }
+
+          // Time
+          auto now = id(omlet_ha_time).now();
+          if (!now.is_valid())
+            now = id(omlet_sntp_time).now();
+          if (!now.is_valid())
+            return;  // stock also does nothing until the clock is synced
+          int m = now.hour * 60 + now.minute;
+          struct Window {
+            datetime::TimeEntity *on, *off;
+            select::Select *speed;
+          };
+          const Window windows[] = {
+              {id(omlet_window1_on), id(omlet_window1_off), id(omlet_window1_speed)},
+              {id(omlet_window2_on), id(omlet_window2_off), id(omlet_window2_speed)},
+              {id(omlet_window3_on), id(omlet_window3_off), id(omlet_window3_speed)},
+              {id(omlet_window4_on), id(omlet_window4_off), id(omlet_window4_speed)},
+          };
+          for (const auto &w : windows) {
+            int on = w.on->hour * 60 + w.on->minute;
+            int off = w.off->hour * 60 + w.off->minute;
+            if (on == off)
+              continue;
+            bool active = on < off ? (m >= on && m < off) : (m >= on || m < off);
+            if (active) {
+              set_fan(true, speed_of(w.speed));
+              return;
+            }
+          }
+          set_fan(false, 0);
+
+interval:
+  - interval: ${control_interval}
+    then:
+      - script.execute: omlet_evaluate
+
+binary_sensor:
+  # BOOT (SW1, back side). Active low. Also the download-mode strap.
+  - platform: gpio
+    id: omlet_boot_button
+    name: Boot Button
+    entity_category: diagnostic
+    pin:
+      number: GPIO0
+      inverted: true
+      ignore_strapping_warning: true
+      mode:
+        input: true
+        pullup: true
+    on_multi_click:
+      - timing:
+          - ON for at least ${factory_reset_hold}
+        then:
+          - logger.log: "BOOT held, factory reset"
+          - button.press: omlet_factory_reset
+
+  # RECOVERY (SW3, front). The stock app only uses it in production test; the
+  # stock bootloader boots the factory_test app when it is held for 5 s at
+  # power-up.
+  - platform: gpio
+    id: omlet_recovery_button
+    name: Recovery Button
+    entity_category: diagnostic
+    pin:
+      number: GPIO17
+      inverted: ${recovery_inverted}
+      mode:
+        input: true
+        pullup: true
+
+button:
+  - platform: factory_reset
+    id: omlet_factory_reset
+    name: Factory Reset
+  - platform: restart
+    name: Restart
