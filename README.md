@@ -9,9 +9,10 @@ the fan works fully locally with Home Assistant. The stock module has no secure 
 can be flashed over the serial header and restored from a backup at any time.
 
 > **Status: work in progress.** The pin map and control logic were recovered by disassembling the stock firmware
-> (1.0.7, see [`analysis/FINDINGS.md`](analysis/FINDINGS.md)). The package compiles with ESPHome 2026.10.1 (checked in CI). Fan polarity, the Low/Medium
-> duty cycles and the RECOVERY button polarity still need to be confirmed on a real unit. Back up your stock firmware
-> first (see below) so you can always go back.
+> (1.0.7, see [`analysis/FINDINGS.md`](analysis/FINDINGS.md)). The package compiles with ESPHome 2026.10.1 (checked in
+> CI) and runs on a real unit: fan polarity, all three speeds (Low starts from standstill), the AHT20 and the Manual,
+> Time and Thermostatic modes are confirmed. Still open: the button polarities, whether the app's Low/Medium match
+> 33/67 %, and going back to stock. Back up your stock firmware first (see below) so you can always go back.
 
 ## Usage
 
@@ -88,7 +89,8 @@ Recovered from the stock firmware (`FanInit`, the I2C init in the control task, 
 | 19 / 20 | USB D− / D+ | Test pads only |
 | 43 / 44 | UART0 TX / RX | Serial header HDR2 |
 
-No GPIO is driven for the green LED (probably a power LED) and the blue tacho wire is never read.
+No GPIO is driven for the green LED, which is a power LED (lit whenever the board has power), and the blue tacho wire
+is never read.
 
 ## Flashing and recovery
 

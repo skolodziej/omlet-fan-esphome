@@ -56,8 +56,8 @@ Not found in firmware:
   confirms by pressing BOOT (pass) or RECOVERY (fail): `0x420121d6`,
   `0x42012208`.
 - **No firmware-controlled LED.** No GPIO output is driven by the app apart
-  from the LEDC pin. The green LED on the back is most likely a power LED
-  (it is lit in download mode). Verify on hardware.
+  from the LEDC pin. The green LED on the back is a power LED: it is lit
+  whenever the board has power (confirmed on hardware).
 
 ## Fan drive (`./components/drivers/Fans.c`)
 
@@ -163,3 +163,24 @@ Bootloader (`0x403c8936`): `bootloader_common_check_long_hold_gpio_level(17, 5,
 Entered when GPIO3 (HDR3 "Prod Test") is low at boot. Steps: AHT20 read,
 BOOT press/release, RECOVERY press/release, fan at 100 % and at 50 % confirmed
 by the operator. State in RTC `0x50001008`.
+
+## Verified on hardware (ESPHome 2026.10.1, 2026-10-29)
+
+One unit, running this package, controlled from Home Assistant while watching
+the device log and the fan:
+
+| Item | Result |
+| --- | --- |
+| Boot, Wi-Fi, API | OK |
+| AHT20 at 0x38 | Found on the bus scan; readings every 60 s, about 24 °C / 53 % indoors |
+| Fan polarity (`inverted: true`) | Correct: off = stopped, on = running |
+| Speeds 33 / 67 / 100 % | Three clearly different speeds; Low starts from standstill, so `fan_min_power: 0` is fine |
+| Manual Speed | Sets the level without switching on; follows speed changes on the fan entity |
+| Thermostatic | Switches on at `temp >= On At`, off at `temp < Off Below` |
+| Time | Switches on inside a window at the window's speed, off when it ends (within one 15 s control interval) |
+| Green LED | Power LED, always lit |
+| BOOT / RECOVERY polarity, 6 s factory reset | Not tested yet |
+
+With Off Below set above On At, the Thermostatic mode toggles the fan every
+few seconds (off by the hysteresis check, back on by the switch-on check).
+That is an invalid setting, but nothing prevents it yet.
